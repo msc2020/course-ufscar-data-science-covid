@@ -1,6 +1,8 @@
 # Basic .gitattributes for a R repo.
 # https://github.com/alexkaratarakis/gitattributes/blob/master/R.gitattributes
 
+*.html linguist-detectable=false
+
 # Source files
 # ============
 *.Rdata binary

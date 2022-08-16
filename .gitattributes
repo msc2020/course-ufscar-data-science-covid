@@ -1,8 +1,9 @@
 .gitattributes  export-ignore
 .gitignore      export-ignore
 *.gitattributes linguist-language=gitattributes
-
 *.html linguist-detectable=false
+
+# https://github.com/alexkaratarakis/gitattributes/blob/master/R.gitattributes
 # Basic .gitattributes for a R repo.
 
 # Source files

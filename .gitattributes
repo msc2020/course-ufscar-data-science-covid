@@ -15,5 +15,3 @@
 *.Rdx   binary
 *.Rmd	  text
 *.R  	  text
-*.Rproj text
-*.[Rr]md   linguist-detectable

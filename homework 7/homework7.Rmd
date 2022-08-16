@@ -1,0 +1,619 @@
+---
+title: "Homework 7"
+author: "Marcelo Santos Carielo"
+date: "29/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Atividade: Análise de Dados do Coronavı́rus no Brasil
+
+1. Aprendemos, através de vários exemplos, como podemos explorar o conjunto de dados sobre covid19 disponibilizado pelo Ministério da Saúde. Agora é a sua vez. Nessa atividade, você deverá usar o mesmo banco de dados para avaliar questões distintas das que foram propostas na aula. Você pode usar os dados diretamente da planilha ou através de pacotes. Busque analisar outras variáveis, fazer uma análise por região, estado, grupo de municípios, etc. As possibilidades são imensas e você deverá explorá-las. Coloque em prática todas as ferramentas que aprendemos anteriormente. Quanto maior o número de elementos utilizados, maior será a sua nota. Utilize toda a sua criatividade e conhecimento. Bom trabalho!
+
+
+Resp:
+
+Usaremos a seguinte base de dados, disponibilizada pelo Ministério da Saúde (https://covid.saude.gov.br), para nossas análises.
+
+### Descrição da base de dados utilizada
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(readr)
+
+dataset_full <- read_excel("HIST_PAINEL_COVIDBR_15jun2020.xlsx",
+                           col_types = c("text",    # Regiao
+                                         "text",    # Estado
+                                         "text",    # Municipio
+                                         "text",    # coduf
+                                         "numeric", # codmun
+                                         "numeric", # codRegiaoSaude
+                                         "text",    # nomeRegiaoSaude
+                                         "date",    # data
+                                         "numeric", # semanaEpi
+                                         "text",    # populacaoTCU2019
+                                         "numeric", # casosAcumulado
+                                         "numeric", # casosNovos
+                                         "numeric", # obitosAcumulado
+                                         "numeric", # obitosNovos
+                                         "numeric", # Recuperadosnovos
+                                         "numeric"  # emAcompanhamentoNovos
+                                         ))
+
+head(dataset_full)
+
+```
+
+Vejamos a estrutura desta base de dados:
+
+```{r}
+
+str(dataset_full)
+summary(dataset_full)
+
+```
+
+Nota-se que há dados faltantes (NA's) na base de dados. Dessa maneira devemos levar em conta tal particularidade nas análises.
+
+### Análise do COVID-19 por estados do Brasil
+
+Apliquemos um filtro para selecionar dados referentes as regiões, desconsiderando dados NA's nas variáveis estado e município:
+
+```{r}
+
+dataset <- dataset_full %>% filter(!is.na(dataset_full$estado) & !is.na(dataset_full$municipio))
+str(dataset)
+
+```
+
+Após aplicar o filtro as variáveis Estado e Município estão prontas para serem analisadas.
+
+Vejamos os 10 estados com mais mortes no Brasil:
+
+```{r}
+
+top_estados <- dataset %>%
+  select(estado, obitosNovos) %>%
+  group_by(estado) %>%
+  summarise(total_mortes=sum(obitosNovos),  .groups='drop') %>%
+  arrange(desc(total_mortes))
+
+top10_estados <- top_estados[1:10,]
+top10_estados
+
+```
+
+Os dados mostram que estados do sudeste assumem as primeiras posições com respeito a quantidade de mortes decorridas por COVID-19.
+
+```{r}
+
+total_obitos <- sum(top_estados$total_mortes)
+
+library(crayon)
+subtitle_grafico <- "TOP 10 / Total de óbitos: " %+% chr(total_obitos) %+% "/ Dados do Ministério da Saúde"
+
+eixo_x_ordenado <- factor(top10_estados$estado, level = top10_estados$estado)
+
+ggplot(top10_estados, mapping=aes(x=eixo_x_ordenado, y=total_mortes)) +
+  geom_bar(stat="identity", aes(fill=estado), width=0.5) +
+  labs(title="Estados com maior quantidade de óbitos por COVID-19", subtitle=subtitle_grafico,
+       x="", y="# óbitos", tag="  ") +
+  geom_text(aes(label=total_mortes, vjust=-0.1), size=3) +
+  scale_fill_discrete(name="Estado") +
+  theme_dark() +
+  guides(col = guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=10, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=20, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top', 
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        legend.title = element_text(size=rel(0.9), face="bold", hjust=0.2, vjust=0.8),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=45, vjust=0.5, hjust=1),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour="gray", size=1),
+        panel.grid.major.x = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title = element_text(size=rel(1.4)),
+        strip.background = element_rect(fill="grey90", colour="grey50"),
+        strip.text.y = element_text(size=rel(0.8), angle=-90)
+  ) 
+
+```
+
+```{r}
+round((10767+7728)/43900, 4)*100
+```
+Em particular, os estados de São Paulo e Rio de Janeiro correspondem por cerca de 42.13% das mortes por CODIVD-19.
+
+### Análise do COVID-19 por municípios
+
+Agora vejamos quais são as cidades mais afetadas pela pandemia de COVID-19.
+
+```{r}
+
+library(scales)
+
+municipios <- dataset %>%
+  filter(!is.na(estado), !is.na(municipio)) %>%
+  group_by(municipio, populacaoTCU2019) %>%
+  summarise(total_obitos = sum(obitosNovos), .groups = 'drop')  %>%
+  arrange(desc(total_obitos))
+head(municipios,10)
+
+```
+
+A tabela acima mostra os 10 primeiros municípios com maior quantidade de mortes por COVID-19.
+Nota-se que a cidade do Rio de Janeiro possui quantidade de mortes muito próximas da cidade de São Paulo, mesmo sendo sua população praticamente cerca de 40% menor. Isso reflete problemas na gestão no combate ao COVID-19 implementadas neste ano no Rio de Janeiro. Nota-se ainda que os demais município também estão em situação precaria nesse quesito. O gráfico abaixo ilustra esse resultado.
+
+```{r}
+
+top10_municipios <- top_n(municipios, 10)
+
+grafico_pizza <- ggplot(top10_municipios, aes(x="", y=total_obitos,
+                                              fill=municipio)) +
+  geom_bar(width=4, stat="identity", colour="white") +
+  geom_text(aes(label = total_obitos), 
+            check_overlap = TRUE, size=2.5, 
+            position = position_stack(vjust = 0.5)) +
+  coord_polar(theta="y") +
+  labs(title="Número de óbitos por municípios", subtitle="TOP10",
+       x="", y="", tag="  ", color = "Municípios:") +
+  theme_dark() +
+  guides(col = guide_legend(nrow=3))+
+  theme(axis.line = element_blank(),
+        axis.ticks=element_blank(),
+        axis.title=element_blank(),
+        axis.text.y=element_blank(),
+        axis.text.x=element_blank(),
+        legend.title = element_blank(),
+        panel.background = element_blank(),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill = "white"),
+        plot.margin = unit(c(0, 0, 0, 0), "cm"),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top', 
+        legend.justification = 'left',
+        legend.direction = 'horizontal')
+  
+grafico_pizza
+
+```
+
+
+Outro aspecto interessante é que das 10 cidades com mais mortes por COVID-19, nove são capitais estaduais. Guarulhos, embora não seja uma capital, ocupa posição de destaque no número de mortes por COVID-19.
+
+
+### COVID-19 na Região Intermediária de Campinas
+
+A Região Intermediária de Campinas é formada por 11 municípios do estado de SP, sendo um deles a jução de 2. Ou seja, podemos considerar esta região como sendo composta por 12 municíios (https://ia601506.us.archive.org/35/items/NovaDivisoTerritorialIBGE/Nova%20Divis%C3%A3o%20Territorial_IBGE.pdf). Para as próximas análises focaremos nessa região do interior paulista.
+
+```{r}
+ 
+sub_municipios <- dataset %>%
+  filter(estado == 'SP', municipio %in% c("Campinas", "Jundiaí", "Piracicaba", 
+                          "Bragança Paulista", "Limeira", "Mogi Guaçu", 
+                          "São João da Boa Vista", "Araras", "Rio Claro",
+                          "São José do Rio Pardo", "Mococa", "Amparo")) %>%
+  group_by(municipio, populacaoTCU2019) %>%
+  summarise(total_obitos = sum(obitosNovos), 
+            total_casos = sum(casosNovos), .groups = 'drop') %>%
+  arrange(desc(total_obitos))
+
+sub_municipios
+
+```
+
+Dentre os 12 munícipios de interesse, Campinas e Jundiaí concentram a maior quantidade de óbitos por COVID-19. O diagrama mostra a distribuição do número de casos, óbitos e a população de cada um dos munícipios da Região Intermediária de Campinas.
+
+```{r}
+
+library(treemapify)
+
+ggplot(data=sub_municipios, 
+       aes(area=total_casos, fill=municipio, 
+           label = municipio %+% 
+             "\n\n Total óbitos: " %+% chr(total_obitos) %+% 
+             "\n Total infectados: " %+% chr(total_casos) %+%
+             "\n População total: " %+% chr(populacaoTCU2019))
+       ) +
+   geom_treemap(show.legend=FALSE, layout="scol") +
+   geom_treemap_text(colour="black", place = "center",
+                     size=12, reflow=FALSE, grow=FALSE) +
+  scale_fill_brewer(palette="Set3") +
+  labs(title = "COVID-19 - Região Intermediária de Campinas",
+             y = NULL, x = NULL)
+
+```
+
+Abaixo temos os 5 primeiros municípios com respeito a quantidade total de mortes por COVID-19 na região aqui analisada.
+
+```{r}
+
+top5_sub_municipios <- sub_municipios[1:5,]
+
+sum_total_obitos <- sum(sub_municipios$total_obitos)
+
+subtitle_grafico <- "Região Intermediária de Campinas - TOP 5 / Total de óbitos na região: " %+%
+  chr(sum_total_obitos)
+
+library(crayon)
+eixo_x_ordenado_municipio <- factor(top5_sub_municipios$municipio,
+                                    level=top5_sub_municipios$municipio)
+
+ggplot(data=top5_sub_municipios, mapping=aes(x=eixo_x_ordenado_municipio, y=total_obitos, 
+                                             group=1)) +
+  geom_bar(stat="identity", aes(fill=municipio), width=0.5) +
+  geom_line(size = 1, alpha=0.5) +
+  labs(title="Região Intermediária de Campinas - Municípios Mais Afetados",
+       subtitle=subtitle_grafico,
+       x="", y="# óbitos", tag="  ",
+       color = "Municípios: ") +
+  geom_text(aes(label=total_obitos, vjust=-0.1), size=3) +
+  scale_fill_discrete(name="Municípios: ") +
+  theme_dark() +
+  guides(col = guide_legend(nrow=3))+
+  theme(axis.title = element_text(size=10, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=20, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top', 
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        legend.title = element_text(size=rel(0.9), face="bold", hjust=0.2, vjust=0.8),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=45, vjust=0.5, hjust=1),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour="gray", size=1),
+        panel.grid.major.x = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title = element_text(size=rel(1.4)),
+        strip.background = element_rect(fill="grey90", colour="grey50"),
+        strip.text.y = element_text(size=rel(0.8), angle=-90)
+  )
+
+```
+Pelos gráficos acima notamos as cidades da região que são menos populosas possuem um menor número de casos.
+
+
+### COVID-19 nos municípios TOP3 mais afetados da Região Intermediária de Campinas
+
+Os gráfico abaixo mostram a evolução do número de casos e de óbitos de COVID-19 nos municípios de Campinas, Jundiaí e Piracicaba.
+
+```{r}
+
+top3_sub_municipios <- sub_municipios[1:3,]
+
+sub_dataset <- dataset %>%
+  filter(estado == "SP", !is.na(municipio), 
+         municipio %in% top3_sub_municipios$municipio) %>%
+  group_by(data, municipio, estado) %>%
+  arrange(data)
+
+g1 <- ggplot(data=sub_dataset, aes(x=as.Date(data), y=obitosNovos, colour=municipio)) +
+  geom_point() +
+  geom_line(size = 1) +
+  labs(title = "Número de óbitos por COVID-19, 2020",
+             y = "# óbitos",
+             x = NULL,
+       color = "Municípios:") +
+  scale_x_date(date_breaks = "2 week", date_minor_breaks = "1 month",
+               date_labels = "%d/%b") +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+
+g2 <- ggplot(data=sub_dataset, aes(x=as.Date(data), y=casosNovos, colour=municipio)) +
+  geom_point() +
+  geom_line(size = 1) +
+  labs(title = "Número de casos de COVID-19, 2020",
+             y = "# casos",
+             x = NULL,
+       color = "Municípios:") +
+  scale_x_date(date_breaks = "2 week", date_minor_breaks = "1 month",
+               date_labels = "%d/%b") +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g1
+g2
+
+```
+
+
+
+Comparando os gráficos percebe-se que a tendência do número de óbitos decorridos por COVID-19 acompanha o número de casos. Analisando a última quinzena do gráfico, que vai de 1 a 15 de junho de 2020, notamos uma tendência de aumento no número de casos, assim como no número de mortes pela doença.
+
+
+### COVID-19, Campinas/SP, 2020
+
+```{r}
+
+sub_dataset_campinas <- dataset %>%
+  filter(municipio == "Campinas") %>%
+  group_by(data, municipio, estado) %>%
+  arrange(data)
+
+g3 <- ggplot(data=sub_dataset_campinas, aes(x=as.Date(data), y=casosNovos)) +
+  geom_point(color="red") +
+  stat_smooth(method="loess", span=0.2, formula = y ~ poly(x, 1), color="violet") +
+  geom_hline(yintercept = mean(sub_dataset_campinas$casosNovos, na.rm=TRUE), 
+             linetype=2, size=1.5, color="black") +
+  scale_x_date(date_breaks = "2 week", date_minor_breaks = "1 month",
+             date_labels = "%d/%b") +
+  labs(title = "# Casos confirmados COVID-19 Campinas/SP - 2020",
+             y = "# casos",
+             x = NULL,
+       color = NULL) +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_blank(), #element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position="none", 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_blank(), 
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g3
+
+
+```
+Comparando o gráfico acima com o que temos abaixo, é possível notar que as tendências do número de mortes e número de casos são semelhantes. No mês junho o município de Campinas atingiu os maiores indíces decorrentes da pandemia.
+
+```{r}
+
+print("média casos novos por dia: " %+% chr(round(mean(sub_dataset_campinas$casosNovos))))
+
+print("média óbitos por dia: " %+% chr(round(mean(sub_dataset_campinas$obitosNovos))))
+      
+```
+
+As médias de casos novos e óbitos para cidade de Campinas, considerando o período analisado, são respectivamente 48 e 2. Esses valores são representados nos gráficos acima e abaixo por meio de uma linha horizontal pontilhada.
+
+
+```{r}
+
+g4 <- ggplot(data=sub_dataset_campinas, aes(x=as.Date(data), y=obitosNovos)) +
+  geom_point(color="blue") +
+  stat_smooth(method="loess", span=0.2, formula = y ~ poly(x, 1), color="green") +
+  geom_hline(yintercept = mean(sub_dataset_campinas$obitosNovos, na.rm=TRUE), 
+             linetype=2, size=1.5, color="black") +
+  scale_x_date(date_breaks = "2 week", date_minor_breaks = "1 month",
+             date_labels = "%d/%b") +
+  labs(title = "# Óbitos COVID-19 Campinas/SP - 2020",
+             y = "# casos",
+             x = NULL,
+       color = NULL) +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_blank(), #element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position="none", 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_blank(), 
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g4
+
+```
+
+## Dados atualizados do COVID-19 e o município de Campinas/SP 
+
+Atualizando a base fornecida pela Ministério da Saúde (https://covid.saude.gov.br) para o dia de 19 de dezembro de 2020 temos os seguintes dados sobre a pandemia de COVID-19. Esta base atualizada está em formato .csv e possui 133 MB.
+
+```{r}
+
+library(readr)
+
+file="HIST_PAINEL_COVIDBR_19dez2020.csv"
+dataset_atualizado <- read.csv2(file, header = TRUE, sep = ";", quote = "\"",
+                    dec = ",", fill = TRUE, comment.char = "")
+
+head(dataset_atualizado)
+
+```
+
+A partir da base de dados atualizada podemos analisar novamente a evolução da pandemia no município de Campinas. Os gráficos abaixo mostram os como os números de morte e casos novos em Campinas evoluiram desde o início da pandemia até a data presente (i.e., até 19 de dezembro de 2020).
+
+```{r}
+
+dataset2 <- dataset_atualizado %>% 
+  filter(!is.na(dataset_atualizado$estado), !is.na(dataset_atualizado$municipio))
+
+sub_dataset_campinas <- dataset2 %>%
+  filter(municipio == "Campinas") %>%
+  group_by(data, municipio, estado) %>%
+  arrange(data)
+
+g5 <- ggplot(data=sub_dataset_campinas, aes(x=as.Date(data))) +
+  geom_bar(aes(y=casosNovos, fill="#casos"), 
+           stat="identity",  alpha=0.6, na.rm=TRUE) + 
+  geom_line(mapping=aes(x=as.Date(data), y=casosNovos),
+            size=1.2, na.rm=TRUE, color="violet") +
+  geom_hline(yintercept = mean(sub_dataset_campinas$casosNovos, na.rm=TRUE), 
+             linetype=2, size=1.5, color="black") +
+  scale_fill_manual("", values="gray") +
+  labs(title = "# Casos confirmados COVID-19 Campinas/SP - dez/2020",
+             y = "# casos",
+             x = NULL,
+       color = NULL) +
+  scale_x_date(date_breaks = "2 month", date_minor_breaks = "1 month",
+             date_labels = "%b/%y") +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 2))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+
+g6 <- ggplot(data=sub_dataset_campinas, aes(x=as.Date(data))) +
+  geom_bar(aes(y=obitosNovos, fill="#casos"), 
+           stat="identity",  alpha=0.8, na.rm=TRUE) + 
+  geom_line(mapping=aes(x=as.Date(data), y=obitosNovos, color="moving average"),
+            size=1.2, na.rm=TRUE, color="red") +
+  geom_hline(yintercept = mean(sub_dataset_campinas$obitosNovos, na.rm=TRUE), 
+             linetype=2, size=1.5, color="black") +
+  scale_colour_manual(" ", values=c("#casos"="red", "moving average"="violet")) +
+  scale_fill_manual("", values="gray") +
+  labs(title = "# Óbitos COVID-19 Campinas/SP - dez/2020",
+             y = "# óbitos",
+             x = NULL,
+       color = NULL) +
+  scale_x_date(date_breaks = "2 month", date_minor_breaks = "1 month",
+             date_labels = "%b/%y") +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 2))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g5 
+g6
+
+```
+
+Os gráficos acima mostram os números de mortes e casos novos decorrentes da pandemia de COVID-19 no município de Campinas ainda não estão em fase de decrescimento.
+As médias, indicadas pelas linhas horizontais tracejadas, mostram que houve um aumento no número de casos novos e óbitos registrados por dia, sendo agora 153 e 4, respectivamente.
+
+```{r}
+
+print("média casos novos por dia: " %+% chr(round(mean(sub_dataset_campinas$casosNovos))))
+
+print("média óbitos por dia: " %+% chr(round(mean(sub_dataset_campinas$obitosNovos))))
+      
+```
+Considerando que atualmente os hospitais deveriam estar preparados para atender os contaminados por coronavírus, que há um conhecimento científico acumulado sobre pesquisas relacionadas ao COVID-19, que há um investimento por parte dos órgãos envolvidos no combate a doença, era esperado que os gráficos refletissem esses pontos positivos. No entanto, os números sugerem que a doença se comporta e tem uma dinâmica de evolução que pode chegar ao que foi há alguns meses atrás, quando o número total de mortes por COVID-19 no munícipio de Campinas chegou ao pico de 36 mortes em um único dia.
+
+```{r}
+
+max(sub_dataset_campinas$obitosNovos)
+
+```

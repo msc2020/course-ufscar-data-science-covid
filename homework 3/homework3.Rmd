@@ -1,0 +1,309 @@
+---
+title: "Homework 3"
+author: "Marcelo Santos Carielo"
+date: "23/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages('nycflights13')
+rm(list=ls())
+```
+
+## Questão 1
+Utilizando o mesmo conjunto de dados para flights usado na aula, encontre todos os vôos que:
+
+(a) Tiveram um atraso na chegada (arrival) de duas horas ou mais.
+
+Resp:
+
+```{r Q1a}
+
+library("nycflights13")
+library(dplyr)
+#names(nycflights13::flights)
+voos_atrasados <- 
+  flights %>% 
+  filter(arr_delay<=2.0)
+
+voos_atrasados
+
+```
+
+(b) Voaram com destino a Houston (IAH ou HOU)
+
+Resp:
+
+```{r Q1b}
+
+library("nycflights13")
+library(dplyr)
+#?nycflights13::flights
+
+voos_dest_iah_hou <- 
+  flights %>% 
+  filter(dest == "IAH" | dest == "HOU")
+
+voos_dest_iah_hou
+
+```
+
+(c) Foram realizados pelas companhias aéreas United, American ou Delta Airlines.
+
+Resp:
+
+```{r Q1c}
+
+library("nycflights13")
+library(dplyr)
+#?nycflights13::flights
+#nycflights13::airlines
+
+voos_comp <-
+  flights %>% 
+  filter(carrier == "UA" | carrier == "AA" | carrier == "DL")
+
+voos_comp
+
+```
+
+
+(d) Partiram no verão (julho, agosto e setembro).
+
+Resp:
+
+```{r Q1d}
+
+library("nycflights13")
+library(dplyr)
+#?nycflights13::flights
+
+
+voos_verao <-
+  flights %>% 
+  filter(month == "7" | carrier == "8" | carrier == "9")
+
+voos_verao
+
+```
+
+(e) Não partiram atrasados, porém chegaram com mais de duas horas de atraso
+ao destino.
+
+Resp:
+
+```{r Q1e}
+
+library("nycflights13")
+library(dplyr)
+#head(nycflights13::flights)
+
+voos_atrasados_dest <-
+  flights %>% 
+  filter(dep_delay == "0" | arr_delay > "2")
+
+voos_atrasados_dest
+
+```
+
+(f) Partiram entre meia noite e 6 h da manhã (inclusive).
+
+Resp:
+
+```{r Q1f}
+
+library("nycflights13")
+library(dplyr)
+#head(nycflights13::flights$hour)
+#min(as.numeric(nycflights13::flights$hour))
+
+voos_periodo <-
+  flights %>% 
+  filter(hour >= 0 & hour <= 6)
+
+voos_periodo
+
+```
+
+
+
+## Questão 2
+Classifique os vôos para encontrar os vôos mais atrasados.
+
+Resp: 
+
+```{r Q2}
+
+library("nycflights13")
+library(dplyr)
+#head(nycflights13::flights)
+
+voos_mais_atrasados <-
+  flights %>% 
+  arrange(desc(dep_delay))
+#?desc
+voos_mais_atrasados
+
+```
+
+## Questão 3
+Classifique os vôos de forma a encontrar os mais rápidos (velocidade mais alta).
+
+Resp: 
+
+```{r Q3}
+
+library("nycflights13")
+library(dplyr)
+#head(nycflights13::flights)
+
+voos_mais_rapidos <-
+  flights %>% 
+  mutate(velocidade = distance / air_time * 60) %>%
+  arrange(desc(velocidade))
+  
+voos_mais_rapidos
+
+```
+
+
+
+## Questão 4
+O que acontece se você incluir o nome de uma variável várias vezes dentro de
+select()?
+
+Resp: 
+
+```{r Q4}
+
+library("nycflights13")
+library(dplyr)
+#head(nycflights13::flights)
+
+voos_select <-
+  flights %>% 
+  select(hour, hour, hour, distance, distance)
+  
+voos_select
+
+```
+
+
+Se o nome de uma variável for incluída várias vezes dentro de select(), o efeito é o mesmo do que incluir apenas uma única vez.
+
+
+## Questão 5
+Encontre os 10 vôos mais atrados usando arrange() e a função min_rank(). Leia a documentação de min_rank() para aprender sobre ele.
+Resp:
+
+```{r Q5}
+
+library("nycflights13")
+library(dplyr)
+#head(nycflights13::flights)
+
+#?min_rank
+
+voos_atrasados_rankeados <-
+  flights %>% 
+  arrange(desc(dep_delay)) %>%
+  mutate(rank = min_rank(dep_delay))
+
+#head(voos_atrasados_rankeados)
+
+voos_atrasados_top_10 <- 
+  voos_atrasados_rankeados %>%
+  select(dep_delay, rank)
+  
+head(voos_atrasados_top_10, 10)
+
+```
+
+
+## Questão 6
+Usando mutate() crie uma coluna com a média da variável tempo em ar (air time). Você vai obter uma nova coluna de constante com a variável desejada.
+
+Resp:
+
+```{r Q6}
+
+library("nycflights13")
+library(dplyr)
+#head(nycflights13::flights)
+
+flights_com_air_time <-
+  flights %>% 
+  mutate(media_air_time = mean(air_time, na.rm = TRUE))
+
+head(flights_com_air_time)
+
+```
+
+
+## Questão 7
+Verifique a coluna com dep_time. Ela não fornece uma variável em tempo contínuo. Converta essa coluna para uma representação mais apropriada de número de minutos a partir da meia-noite.
+
+Resp: 
+
+OBS: dep_time: Actual departure time (format HHMM or HMM), local tz.
+
+```{r Q7}
+library("nycflights13")
+library(dplyr)
+summary(nycflights13::flights$dep_time)
+
+departure_time <- nycflights13::flights$dep_time
+
+departure_time_hours <- departure_time %/%100
+departure_time_minutes <- departure_time %%100
+
+departure_time_in_minutes <- departure_time_hours*60 + departure_time_minutes
+
+flights_com_dep_time_apropriado <-
+  flights %>% 
+  transform(dep_time = departure_time_in_minutes)
+
+head(flights_com_dep_time_apropriado)
+
+
+```
+
+
+## Questão 8
+Verifique qual companhia área tem os piores atrasos.
+
+Resp:
+
+```{r Q8}
+
+library("nycflights13")
+library(dplyr)
+#head(nycflights13::flights)
+
+
+voos_atrasados_rankeados <-
+  flights %>% 
+  arrange(desc(dep_delay)) %>%
+  mutate(rank = min_rank(dep_delay))
+
+voos_atrasados_top_3 <- 
+  voos_atrasados_rankeados %>%
+  select(dep_delay, carrier, rank)
+
+head(voos_atrasados_top_3, 10)
+
+voos_atrasados_top_3 <-  unique(voos_atrasados_top_3$carrier)
+
+voos_atrasados_top_3
+nycflights13::airlines
+
+```
+
+Companhias com piores atrasos:
+
+1o) Hawaiian Airlines Inc. (HA)
+
+2o) Envoy Air (MQ)
+
+3o) American Airlines Inc. (AA)

@@ -1,0 +1,696 @@
+---
+title: "Homework 6"
+author: "Marcelo Santos Carielo"
+date: "30/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+```
+
+## Atividade: Análise de Dados do Coronavírus no Mundo
+
+Aprendemos, através de vários exemplos, como podemos explorar o pacote coronavírus disponível no R. 
+Agora é a sua vez! Nessa atividade, você deverá usar o pacote coronavírus para avaliar questões distintas das que foram propostas na aula. 
+Você pode analisar outras variáveis, ou utilizar as mesmas variáveis a fim de fazer uma análise por região, grupo de países, etc. As possibilidades são imensas e você deverá explorá-las.
+Coloque em prática todas as ferramentas que aprendemos anteriormente para fazer um relatório sobre a situação do coronavírus. 
+Quanto maior o número de elementos utilizados, maior será a sua nota. 
+Utilize toda a sua criatividade e conhecimento. 
+Bom trabalho!
+
+
+Resp:
+
+## Análise do coronavírus na América Latina
+
+Para as questões aqui estudadas referentes ao coronavírus iremos utilizar os pacotes vistos em aulas, além do wpp2019 (World Population Prospects 2019) para obtermos a população dos países
+
+Inicialmente, vejamos como tem sido a evolução do coronavírus nos 12 países da América do Sul.
+
+```{r}
+
+# carrega pacotes
+#install.packages("wpp2019")
+library(wpp2019)
+data(pop)
+
+library(ggplot2)
+library(patchwork)
+library(lubridate)
+library(zoo)
+library(dplyr)
+
+#install.packages("coronavirus")
+library(coronavirus)
+#update_dataset() #obs: colocar Y (yes) no console
+
+#?coronavirus
+#names(coronavirus)
+#head(coronavirus)
+
+#?wpp2019
+#names(pop)
+#head(pop$name)
+
+south_america <- c("Argentina", "Bolivia (Plurinational State of)", "Brazil",
+                   "Chile", "Colombia", "Ecuador", "Guyana",
+                   "Paraguay", "Peru", "Suriname", "Uruguay", 
+                   "Venezuela (Bolivarian Republic of)")
+#length(south_america)
+
+# filtra dados sobre a populacao
+population <- pop %>% filter(name %in% south_america) %>%
+  unique() %>%
+  select(name, "2020") %>%
+  rename(total_pop = "2020") %>%
+  arrange(name)
+
+dim(population)
+#population
+population %>% arrange(-total_pop)
+
+```
+Acima, temos a população de cada um dos países da América Latina em 2020, segundo o wpp2019.
+
+```{r}
+
+min(coronavirus$date)
+max(coronavirus$date)
+
+```
+
+Vejamos um resumo dos dados sobre o total de casos de coronavírus na América Latina para o período que vai de 22/jan/2020 a 25/nov/2020.
+
+
+```{r}
+
+south_america_b <- c("Argentina", "Bolivia", "Brazil",
+                   "Chile", "Colombia", "Ecuador", "Guyana",
+                   "Paraguay", "Peru", "Suriname", "Uruguay", 
+                   "Venezuela")
+
+total_deaths <- coronavirus %>%
+  filter(country %in% south_america_b & 
+         type == "death") %>%
+  group_by(country) %>%
+  summarise(total_deaths = sum(cases), .groups="drop")
+
+total_recovered <- coronavirus %>%
+  filter(country %in% south_america_b & 
+         type == "recovered") %>%
+  group_by(country) %>%
+  summarise(total_recovered = sum(cases), .groups="drop")
+
+latin_america <- coronavirus %>%
+  filter(country %in% south_america_b & 
+         type == "confirmed") %>%
+  group_by(country) %>%
+  summarise(total_cases = sum(cases), .groups="drop") %>%
+  mutate(population = 1000*population$total_pop, 
+         cases_percentage = round(total_cases/population*100, 2),
+         total_recovered = total_recovered$total_recovered,
+         total_deaths = total_deaths$total_deaths,
+         active_cases = total_cases - total_recovered - total_deaths,
+         deaths_per_case_percentage = round(total_deaths/total_cases*100, 2)) %>%
+  arrange(-total_cases)
+
+latin_america
+
+
+#dim(latin_america)
+
+```
+
+Os países com maior e menor número de casos confirmados na América Latina são, respectivamente, o Brasil e Uruguai.
+Embora o Equador e Bolívia são os países com maior número de mortes por infectados, em termos de volume, o Brasil ocupa o primeiro lugar, tendo alcançado mais do que 167 mil mortes por coronavírus. 
+Isso corresponde a mais de 4 vezes a quantidade de mortes ocorrida em países latinos americanos vizinhos, além de refletir a situação emergencial ocasionada pela pandemia de coronavírus.
+
+```{r}
+
+#install.packages("treemapify")
+library(treemapify)
+#help(geom_treemap)
+
+mortes_covid <- coronavirus %>% 
+  filter(country %in% south_america &
+         type == "death") %>%
+  group_by(country) %>%
+  summarise(total_cases = sum(cases), .groups="drop") %>%
+  arrange(-total_cases) %>%
+  ungroup() 
+
+#head(mortes_covid)
+  
+ggplot(data= mortes_covid, 
+       aes(area=total_cases, fill=country, 
+           label = paste(country, total_cases, sep="\n"))) +
+   geom_treemap(show.legend=FALSE, layout="scol") +
+   geom_treemap_text(colour="black", place="topleft",
+                     size=14, reflow=FALSE, grow=FALSE) +
+  scale_fill_brewer(palette="Set3") +
+  labs(title = "# Total deaths COVID-19",
+             y = NULL,
+             x = NULL)
+
+```
+
+
+```{r}
+
+latin_america %>% arrange(-total_deaths) %>%
+  select(country, total_cases, total_deaths)
+
+
+```
+Os dados do dataset coronavírus utilizados para criar a tabela acima, ordenada pela quantidade total de mortes por coronavírus, fornecem o seguinte gráfico:
+
+```{r}
+
+#names(coronavirus)
+#?quantile
+
+total_deaths1 <- coronavirus %>% 
+  filter(country %in% c("Brazil", "Argentina", "Peru", "Uruguay") &
+         type == "death") %>%
+  group_by(date, country, cases) %>%
+  summarise(total_deaths = sum(cases), .groups="drop") %>%
+  arrange(date)
+
+g1 <- ggplot(data=total_deaths1, aes(x=date, y=cases, colour=country)) +
+  geom_point() +
+  geom_line(size = 1) +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week",
+             date_labels = "%b/%y") +
+  scale_y_continuous(limits = c(0, 4500), breaks = seq(0, 4500, 500)) +
+  labs(title = "# Deaths COVID-19",
+             y = "#deaths",
+             x = NULL,
+       color = "Countries:") +
+  theme_classic() +
+  guides( col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g1
+
+```
+
+O gráfico acima mostra a evolução das mortes por coronavírus na América Latina para o período que vai de 22/jan/2020 a 25/nov/2020.
+Notamos que há presença de outliers nos dados referentes a Argentina e ao Peru.
+Para melhorar a visualização desses dados, iremos considerar o 99.8% percentil e exibir a mediana do número de mortes por cornavírus.
+
+
+```{r}
+
+total_deaths1 <- coronavirus %>%
+  filter(country %in% c("Brazil", "Argentina", "Peru", "Uruguay") &
+         type == "death") %>%
+  group_by(date, country, cases) %>%
+  summarise(total_deaths = sum(cases), .groups="drop") %>%
+  arrange(date)
+
+g1b <- ggplot(data=total_deaths1, aes(x=date, y=cases, colour=country)) +
+  geom_point(na.rm=TRUE) +
+  geom_line(size = 1) +
+  geom_hline(yintercept = mean(total_deaths1$cases, na.rm=TRUE), 
+             linetype = 3, size=3.5, color="black") +
+#  geom_smooth(method = "lm", color = "red")
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week",
+             date_labels = "%b/%y") +
+    ylim(0, quantile(total_deaths1$cases, 0.998)) +
+  labs(title = "#deaths COVID-19",
+             y = "#deaths",
+             x = NULL,
+       color = "Countries:") +
+  theme_classic() +
+  guides( col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g1b
+
+```
+
+O gráfico acima mostra que de abril até meados de novembro deste ano, o Brasil foi o país com maior número de mortes em cada mês.
+
+```{r}
+
+round(mean(total_deaths1$cases))
+
+```
+
+Percebe-se ainda que, a partir de setembro, a Argentina teve um aumento considerável superando a média da América Latina, isto é, de 198 mortes por dia.
+Já o Peru, do final de maio até início de setembro teve mortes diárias praticamente constantes, de valor valor igual a média da Amárica Latina.
+Vemos também que o Uruguai desde o começo da pandemia teve uma quantidade de mortes por coronavírus bastante pequena.
+
+
+## Análises para o mês de novembo de 2020
+
+Vejamos a evolução da pandemia na América Latina para o mês de novembro.
+
+```{r}
+
+library(tidyr)
+
+#max(coronavirus$date)
+
+data_november <- coronavirus %>%  filter(country %in% south_america_b &
+                          date >= '2020-11-01' & date <= '2020-11-25' &
+                          type == "death") %>%
+  group_by(country, type, date) %>%
+  summarise(total_cases=sum(cases), .groups="drop") %>%
+  pivot_wider(names_from=type,
+              values_from=total_cases)# %>%
+  #arrange(-death)
+
+
+data_november
+
+```
+
+
+```{r}
+
+round(mean(data_november$death, na.rm=TRUE))
+
+```
+
+```{r}
+
+g1c <- ggplot(data=data_november, aes(x=date, y=death, colour=country)) +
+  geom_point(na.rm=TRUE) +
+  geom_line(size = 1) +
+  geom_hline(yintercept = mean(data_november$death, na.rm=TRUE), 
+             linetype = 3, size=3.5, color="black") +
+  scale_x_date(date_breaks = "1 day", date_minor_breaks = "1 week",
+             date_labels = "%d") +
+  labs(title = "# Deaths COVID-19",
+       subtitle = "nov/2020",
+             y = "#deaths",
+             x = NULL,
+       color = NULL) +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 2))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g1c
+
+```
+
+Para o mês de novembro os gráficos mostram que Brasil, Peru e Colômbia têm se mantido acima da média de mortes diárias por coronavírus na América Latina.
+Com exeção do Peru que ultrapassou a média de 85 mortes nos dias 4, 20 e 21, e dos 3 primeiros em mortes, o restante dos países da América Latina ficou abaixo deste valor.
+No dia 5 de novembro o número de mortes por coronavírus cadastrados no Brasil foi zero, indicando algum eventual problema.
+
+
+## COVID-19 no Brasil paa o mês de novembro de 2020
+
+```{r}
+
+data_november_br <- coronavirus %>%  filter(country== "Brazil" &
+                          date >= '2020-11-01' & date <= '2020-11-25' &
+                          type == "death") %>%
+  group_by(country, type, date) %>%
+  summarise(total_cases=sum(cases), .groups="drop") %>%
+  pivot_wider(names_from=type,
+              values_from=total_cases)
+
+data_november_br
+
+g1d <- ggplot(data=data_november_br, aes(x=date, y=death, colour=country)) +
+  geom_point(na.rm=TRUE) +
+  geom_line(size = 1) +
+  geom_hline(yintercept = mean(data_november_br$death, na.rm=TRUE), 
+             linetype = 2, size=1.5, color="black") +
+  scale_x_date(date_breaks = "2 day", date_minor_breaks = "1 week",
+             date_labels = "%d") +
+  labs(title = "# Deaths COVID-19",
+       subtitle = "nov/2020",
+             y = "#deaths",
+             x = NULL,
+       color = NULL) +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 2))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+g1d
+
+round(mean(data_november_br$death, na.rm=TRUE))
+
+```
+Olhando para o mÊs de novembro não é possível notar uma tendência que indique alguma possível estabilização do número de mortes por coronavírus no Brasil.
+
+## Evolução do COVID-19 no Brasil
+
+```{r}
+
+data_br <- coronavirus %>%  filter(country== "Brazil" &
+                          type == "death") %>%
+  group_by(country, type, date) %>%
+  summarise(total_cases=sum(cases), .groups="drop") %>%
+  pivot_wider(names_from=type,
+              values_from=total_cases)
+
+data_br
+
+g1f <- ggplot(data=data_br, aes(x=date, y=death, colour=country)) +
+  geom_col(mapping = aes(x=date, y=death), fill = "orange") +
+  geom_line(size=0.8, color="gray") +
+  geom_hline(yintercept = mean(data_br$death, na.rm=TRUE), 
+             linetype=1, size=1.5, color="black") +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 month",
+             date_labels = "%b/%y") +
+  labs(title = "# Deaths COVID-19 Brazil",
+       y = "#deaths",
+       x = NULL,
+       color = NULL) +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_blank(), #element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position="none",#'top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_blank(), #element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g1f
+
+
+?geom_smooth()
+g1g <- ggplot(data=data_br, aes(x=date, y=death, colour=country)) +
+  geom_point() +
+  stat_smooth(method="loess", span=0.3, formula = y ~ poly(x, 1)) +
+  geom_hline(yintercept = mean(data_br$death, na.rm=TRUE), 
+             linetype=1, size=1.5, color="black") +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 month",
+             date_labels = "%b/%y") +
+  labs(title = "# Deaths COVID-19 Brazil",
+       y = "#deaths",
+       x = NULL,
+       color = NULL) +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_blank(), #element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position="none",#'top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_blank(), #element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g1g
+
+round(mean(data_br$death, na.rm=TRUE))
+
+```
+
+Analisando a evolução do coronavírus desde o início de 2020 até o presente momento, pelo gráfico acima, nota-se que embora haja uma tendência de decaimento após agosto, no mês de novembro há um aumento no número de mortes por coronavírus.
+Destaca-se ainda que a média para o período é de 553 ao dia.
+Ainda não é possível afirmar que há uma tendência de diminuição efetiva no número de mortes, sendo que a curva exibida acima mostra o reflexo do efeito de uma mitigação inadequada no combate a pandemia. 
+
+
+## COVID-19 segunda onda
+
+```{r}
+
+data_br_cases <- coronavirus %>%  filter(country== "Brazil" &
+                          type == "confirmed") %>%
+  group_by(country, type, date) %>%
+  summarise(total_cases=sum(cases), .groups="drop") %>%
+  pivot_wider(names_from=type,
+              values_from=total_cases)
+
+data_br_cases
+
+g2 <- ggplot(data=data_br_cases, aes(x=date, y=confirmed, colour=country)) +
+  geom_point() +
+  stat_smooth(method="loess", span=0.4, formula = y ~ poly(x, 1)) +
+  geom_hline(yintercept = mean(data_br_cases$confirmed, na.rm=TRUE), 
+             linetype=1, size=1.5, color="black") +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 month",
+             date_labels = "%b/%y") +
+  labs(title = "# Confirmed cases COVID-19 Brazil",
+             y = "#cases",
+             x = NULL,
+       color = NULL) +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_blank(), #element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position="none",#'top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_blank(), #element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g2
+
+round(mean(data_br_cases$confirmed, na.rm=TRUE))
+
+```
+
+O gráfico acima mostra o efeito de uma "segunda onda" de coronavírus atingindo o Brasil.
+Até meados de agosto a quantidade de casos de covid vinha diminuindo, mas no final de outubro houve uma mudança na inflexão da curva, passando então a refletir um aumento expressivo no número de casos confirmados.
+Mesmo com a diminuição no número de casos durante o mês de agosto e, principalmente em setembro, não foi possível o número de casos ficar abaixo da média de 20 mil casos por dia, valor considerado levando em conta todo período da pandemia.
+
+Segundo especialistas, esse aumento se deve a ineficiência na implementação de medidas para combater o coronavírus.
+De fato, isso mostra que as várias recomendações no combate a doença não seguidas por muitos estados brasileiros começa a surtir efeito negativo no que tange a evolução da pandemia de coronavírus.
+
+
+```{r}
+
+library(zoo)
+library(tidyr)
+
+data_br_cases_deaths <- coronavirus %>%  filter(country== "Brazil" &
+                          (type == "confirmed" | type == "death" )) %>%
+  group_by(country, type, date) %>%
+  summarise(total_cases=sum(cases), .groups="drop") %>%
+  pivot_wider(names_from=type,
+              values_from=total_cases)
+head(data_br_cases_deaths)
+names(data_br_cases_deaths)
+
+movel <- data_br_cases_deaths %>%
+  mutate(média_móvel15=zoo::rollmean(confirmed, k=15, fill = NA, na.rm=TRUE))
+#movel
+
+g3 <- ggplot(data=movel, aes(x=date)) +
+  geom_bar(aes(y = confirmed, fill="#cases"), 
+           stat="identity",  alpha=0.6, na.rm=TRUE) + 
+  geom_line(mapping=aes(x = date, y = média_móvel15, color="moving average"),
+            size=1.5, na.rm=TRUE) +
+  scale_colour_manual(" ", values=c("#cases"="violet", "moving average"="blue")) +
+  scale_fill_manual("",values="violet") +
+  labs(title = "Confirmed cases COVID-19", 
+                  subtitle = "Moving average (15 days) - Brazil",
+                  y = "#cases", 
+                  x = NULL) +
+  scale_x_date(date_breaks = "2 month", date_minor_breaks = "1 month",
+             date_labels = "%b/%y") +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 2))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+movelb <- data_br_cases_deaths %>%
+  mutate(média_móvel15=zoo::rollmean(death, k=15, fill = NA, na.rm=TRUE))
+
+
+g4 <- ggplot(data=movelb, aes(x=date)) +
+  geom_bar(aes(y=death, fill="#deaths"), 
+           stat="identity",  alpha=0.6, na.rm=TRUE) + 
+  geom_line(mapping=aes(x=date, y=média_móvel15, color="moving average"),
+            size=1.5, na.rm=TRUE) +
+  scale_colour_manual(" ", values=c("#deaths"="lightgreen", "moving average"="orange")) +
+  scale_fill_manual("",values="lightgreen") +
+  labs(title = "Deaths COVID-19", 
+                  subtitle = "Moving average (15 days) - Brazil",
+                  y = "#deaths", 
+                  x = NULL) +
+  scale_x_date(date_breaks = "2 month", date_minor_breaks = "1 month",
+             date_labels = "%b/%y") +
+  theme_classic() +
+  guides(col = guide_legend(nrow = 2))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length.x =unit(0.2, "lines"), 
+        axis.ticks.length.y =unit(0, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=1),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="Set3", colour="Set2"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+
+
+library("gridExtra")
+grid.arrange(g3, g4, nrow=1, ncol=2)
+
+
+```
+  
+Os gráficos acima mostram a proximidade na evolução entre o número de mortes por coronavírus e o número de casos.
+Nota-se que ambos valores possuem muita semelhança, sendo que o mês no novembro notamos o a tendência de um novo crescimento de coronavírus no Brasil.
+
+## Referências
+
+[1] R package: coronavirus 
+<https://github.com/RamiKrispin/coronavirus>
+
+[2] COVID-19 pandemic
+<https://en.wikipedia.org/wiki/COVID-19_pandemic>
+
+[3] Coronavírus: 'Brasil já está na 2ª onda de covid-19', diz pesquisador da USP <https://www.bbc.com/portuguese/brasil-54982109>

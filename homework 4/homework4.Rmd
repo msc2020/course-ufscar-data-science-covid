@@ -1,0 +1,367 @@
+---
+title: "Homework 4"
+author: "Marcelo Santos Carielo"
+date: "03/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+```
+
+## Atividade
+
+1. Aprendemos, através de vários exemplos, como utilizar o Google Trends no R. Nessa atividade, você deverá usar o Google Trends para avaliar algum problema/questão que a busca por palavras ou frases possa ajudar a desvendar. Deverá fazer gráficos explicativos, de preferência usando o ggplot. Quanto maior o número de elementos utilizados, maior será a sua nota. Não custa lembrar que não vale copiar os exemplos utilizados na aula. Utilize toda a sua criatividade e divirta-se.
+
+Resp:
+
+A questão a ser investigada é quanto a procura por dois temas de interesse de muitos estudantes atualmente: como fazer um bolo se ovo e se houve ou não cortes nas bolsas de estudos.
+
+Devido ao confinamento gerado pelo atual cenário da pandemia de coronavírus, cada vez mais tem sido comum adaptar as receitas culinárias aos ingredientes que se tem disponível no momento de sua elaboração. Inspirado por esse desafio, desejamos investigar se de fato, a questão de fazer um bolo utilizar ovo tem sido um tópico pesquisado na internet.
+
+Outro tema de interesse se relaciona aos consecutivos cortes na Educação. Estudantes de universidade pública brasileira tem presenciado/vivenciado um dos piores momentos na história do país com respeito ao tema. Pesquisas de ponta, muitas vezes já consolidadas a anos, sofrem ameaças constantes de cortes, de contigênciamentos e todo tipo de pressão que atinge a todos os estudantes diretamente. Nesse cenário de instabilidade, é oportuno investigar como tem sido a procura na internet pelo tema ao longo dos últimos tempos.
+
+
+```{r}
+
+library(gtrendsR)
+library(ggplot2)
+library(dplyr)
+
+keywords = c("bolo sem ovo", "cortes na educação")
+trendsBR <- gtrends(keywords, geo = c("BR"), time = "all") 
+
+trend_series_BR <- as_tibble(trendsBR$interest_over_time)
+
+periodo <- trendsBR$interest_over_time %>% 
+  mutate(hits = ifelse(hits == "<1", 0.5, hits),
+         date = as.Date(date),
+         keyword = factor(keyword, levels=keywords))
+
+g1 <- ggplot(data=periodo, 
+             aes(x=date, y=as.numeric(hits), group=keyword, color=keyword,
+                 fill=keyword)) +
+  geom_line(size = 1.3) +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+  labs(title = "Volume de busca",
+             y = 'Interesse relativo',
+             x = NULL,
+       color = "Palavras/Frases: ") +
+theme_classic() +
+  guides( col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length=unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g1
+
+
+```
+
+O gráfico acima mostra que, de 2005 até novembro de 2020 (mais especificamente, até o dia de hoje), segundo os índices do gtrends, a procura por 'bolo sem ovo', no geral, foi superior a 'cortes na educação'. 
+
+No entanto, nota-se que por volta do ano 2019 houve um disparo na procura por 'cortes na educação', sugerindo que algo de incomum ocorreu no período.
+
+
+```{r}
+
+tempo = ("2019-03-01 2019-08-01")
+keywords = c("bolo sem ovo", "cortes na educação")
+
+trendsBR2 <- gtrends(keywords, geo = c("BR"), time = tempo) 
+
+periodo2 <- trendsBR2$interest_over_time %>% 
+  mutate(hits = ifelse(hits == "<1", 0.5, hits),
+         date = as.Date(date),
+         keyword = factor(keyword, levels=keywords))
+
+g2 <- ggplot(data=periodo2, 
+             aes(x=date, y=as.numeric(hits), group=keyword, color=keyword)) +
+  geom_line(size = 1.3) +
+  geom_vline(xintercept = as.numeric(as.Date("2019-05-15")), 
+             linetype = 2, size=1) +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week",
+             date_labels = "%d-%B-%Y")+
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+  labs(title = "Volume de busca 2019",
+             y = 'Interesse relativo',
+             x = NULL,
+       color = "Palavras/Frases: ") +
+  theme_classic() +
+  guides( col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length=unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+g2
+
+
+```
+
+O gráfico acima está de acordo com a notícia abaixo. Além disso, nota-se que no dia 15 de maio de 2019 (dia da publicação da reportagem mencionada abaixo), representado por uma reta vertical tracejada, a situação com 'cortes na educação' ganhou especial destaque na mídia brasileira.
+
+> No fim de abril, governo anunciou o congelamento de R$ 1,7 bi dos gastos das universidades, de um total de R$ 49,6 bi. Ministro disse que verba pode ser desbloqueada no 2º semestre se a arrecadação de impostos crescer.
+
+fonte: [https://g1.globo.com/educacao/noticia/2019/05/15/entenda-o-corte-de-verba-das-universidades-federais-e-saiba-como-sao-os-orcamentos-das-10-maiores.ghtml](Entenda o corte de verba das universidades federais e saiba como são os orçamentos das 10 maiores) [15-05-2019]
+
+Analisando os gráficos anteriores, nota-se que de 2005 até novembro de 2020, com exeção do mês de maio de 2019, no geral, a procura por 'bolo sem ovo' na internet teve maior procura do que 'cortes na educação'. Certas tendências relacionadas aos cortes na Educação ocorridos nos últimos anos e agravados severamente desde início de 2019, também são captadas pelos gráficos acima.
+
+Agora busca-se investigar se há um momento crítico em que o assunto 'bolo sem ovo' passou a ter extrema relevância para a maioria dos internautas.
+
+
+```{r}
+
+tempo = ("2020-01-01 2020-11-01")
+keywords = c("bolo sem ovo", "cortes na educação")
+
+trendsBR3 <- gtrends(keywords, geo = c("BR"), time = tempo) 
+
+periodo3 <- trendsBR3$interest_over_time %>% 
+  mutate(hits = ifelse(hits == "<1", 0.5, hits),
+         date = as.Date(date),
+         keyword = factor(keyword, levels=keywords))
+
+mediana <- mean(subset(periodo3$hits, periodo3$keyword!="cortes na educação"))
+mediana
+
+g3 <- ggplot(data=periodo3, 
+             aes(x=date, y=as.numeric(hits), group=keyword, color=keyword)) +
+  geom_line(size = 1.3) +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+  geom_vline(xintercept = as.numeric(as.Date("2020-02-26")), 
+             linetype = 2, size=1) +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week",
+             date_labels = "%B-%Y")+
+  geom_hline(yintercept = mediana, size = 1, linetype = 6) +
+labs(title = "Volume de busca 2020",
+             y = 'Interesse relativo',
+             x = NULL,
+       color = "Palavras/Frases: ") +
+  theme_classic() +
+  guides( col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        axis.ticks.length=unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+
+g3
+
+
+```
+  
+A reta vertical tracejada no gráfico acima se refere a data de 26/fev/2020, possível data de início da pandemia de COVID-19 no Brasil. Já a reta tracejada que está na horizontal, destaca a mediana do conjunto de dados referentes aos cliques de 'bolo sem ovo'. 
+
+Pelo gráfico, nota-se que logo após o início da pandemia houve um aumento na procura de 'bolo sem ovo'. Mas com o passar do tempo esse crescimento tendeu a diminuir, passando a ficar abaixo da mediana do período. Comparando com as pesquisas sobre 'cortes na educação' para o período exibido no gráfico, percebe-se uma alta diferença em termos do interesse pelos dois assuntos.
+  
+O gráfico abaixo mostra um ajuste polinomial de ordem 4 para os dados de 'bolo sem ovo' no ano de 2020. De acordo com gráfico, no mês de novembro havera uma tendência de crescimento na procura por 'bolo sem ovo'.
+
+  
+```{r}
+tempo = ("2020-01-01 2020-11-01")
+keywords = c("bolo sem ovo", "cortes na educação")
+
+trends4 <- gtrends(keywords, geo = c("BR-SP"), time = tempo) 
+periodo4 <- trends4$interest_over_time %>% 
+  mutate(hits = ifelse(hits == "<1", 0.5, hits),
+         date = as.Date(date),
+         keyword = factor(keyword, levels=keywords))
+
+g4 <- ggplot(data=periodo4,
+             aes(x=date, y=as.numeric(hits), group=keyword, color=keyword)) +
+  geom_point(size=2) + 
+  geom_line(size = 1.3) +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 4), color="violet") +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+  geom_vline(xintercept = as.numeric(as.Date("2020-02-26")), 
+             linetype = 2, size=1) +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week",
+             date_labels = "%B-%Y") +
+  geom_hline(yintercept = mediana, size = 1, linetype = 6) +
+  labs(title = "Volume de busca 2020",
+             y = 'Interesse relativo',
+             x = NULL,
+       color = "Palavras/Frases: ") +
+  theme_classic() +
+  guides( col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length=unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+g4
+
+
+```
+
+Para finalizar, vejamos uma comparação entre dois estados do Brasil com respeito ao assunto. Os gráficos abaixo ilustram a tendência presente em SP e no RJ na busca por 'bolo sem ovo' e 'cortes na educação'.
+
+```{r}
+
+tempo = ("2020-01-01 2020-11-01")
+keywords = c("bolo sem ovo", "cortes na educação")
+
+trendsSP <- gtrends(keywords, geo = c("BR-SP"), time = tempo) 
+periodoSP <- trendsSP$interest_over_time %>% 
+  mutate(hits = ifelse(hits == "<1", 0.5, hits),
+         date = as.Date(date),
+         keyword = factor(keyword, levels=keywords))
+
+trendsRJ <- gtrends(keywords, geo = c("BR-RJ"), time = tempo) 
+periodoRJ <- trendsRJ$interest_over_time %>% 
+  mutate(hits = ifelse(hits == "<1", 0.5, hits),
+         date = as.Date(date),
+         keyword = factor(keyword, levels=keywords))
+
+gSP <- ggplot(data=periodoSP, 
+             aes(x=date, y=as.numeric(hits), group=keyword, color=keyword)) +
+  geom_point(size=2) +
+  geom_line(size = 1.3) +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week",
+             date_labels = "%B") +
+  geom_vline(xintercept = as.numeric(as.Date("2020-02-26")), 
+             linetype = 2, size=1) +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 4), color="blue") +
+  labs(title = "Volume de busca 2020 - SP",
+             y = 'Interesse relativo',
+             x = NULL,
+       color = "") +
+  theme_classic() +
+  guides( col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length=unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+gRJ <- ggplot(data=periodoRJ, 
+             aes(x=date, y=as.numeric(hits), group=keyword, color=keyword)) +
+  geom_point(size=2) +
+  geom_line(size = 1.3) +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week",
+             date_labels = "%B") +
+  geom_vline(xintercept = as.numeric(as.Date("2020-02-26")), 
+             linetype = 2, size=1) +
+  geom_smooth(method = "lm", formula = y ~ splines::bs(x, 4), color="green") +
+  labs(title = "Volume de busca 2020 - RJ",
+             y = 'Interesse relativo',
+             x = NULL,
+       color = "") +
+  theme_classic() +
+  guides( col = guide_legend(nrow = 1))+
+  theme(axis.title=element_text(size=8, face="italic"),
+        plot.caption = element_text(hjust = 0.0, size=8),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length=unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour= "gray", size=1),
+        legend.background=element_rect(fill="white", colour=NA),
+        legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal',
+        legend.title=element_text(size=rel(0.8), face="bold", hjust=0),
+        panel.background=element_blank(),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        panel.border=element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour= "gray",size=1),
+        plot.margin=unit(c(1, 1, 0.5, 0.5), "lines"),
+        plot.title=element_text(size=rel(1.2)),
+        strip.background=element_rect(fill="grey90", colour="grey50"),
+        strip.text.y=element_text(size=rel(0.8), angle=-90)
+  )
+
+
+library("gridExtra")
+grid.arrange(gSP, gRJ, nrow=1, ncol=2)
+
+```
+
+
+Os gráficos mostram que no estado do RJ houve uma maior procura tanto pelo assunto 'cortes na educação' assim como 'bolo sem ovo', quando comparado ao estado de SP. No período aqui considerado como início da pandemia, ilustrado pela reta vertical tracejada, notamos um aumento expressivo na procura pela situação da educação por parte daqueles presentes no estado do RJ.

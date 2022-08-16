@@ -1,0 +1,9 @@
+Note: 
+File homework 7/HIST_PAINEL_COVIDBR_19dez2020.csv is 126.83 MB; this exceeds GitHub's file size limit of 100.00 MB
+remote: error: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com
+
+-- split into 4 parts --
+>> split --number=4 HIST_PAINEL_COVIDBR_19dez2020.csv
+
+-- join the 2 parts into 1 --
+>> cat x* > HIST_PAINEL_COVIDBR_19dez2020.csv

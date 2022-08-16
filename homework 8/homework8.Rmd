@@ -1,0 +1,848 @@
+---
+title: "Homework 8"
+author: "Marcelo Santos Carielo"
+date: "03/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+rm(list=ls())
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## Atividade: Análise de Dados PNAD COVID-19
+
+1. Aprendemos, através de vários exemplos, como podemos explorar o conjunto de dados da PNAD COVID-19 disponibilizado pelo IBGE. Agora é a sua vez. Nessa atividade, você deverá usar o mesmo banco de dados para avaliar questões distintas das que foram propostas na aula. Busque analisar outras variáveis, fazer uma análise por região, estado, grupo de municı́pios, etc. Você também pode melhorar a apresentação dos gráficos disponibilizados na aula. As possibilidades são imensas e você deverá explorá-las. Coloque em prática todas as ferramentas que aprendemos anteriormente. Quanto maior o número de elementos utilizados, maior será a sua nota. Utilize toda a sua criatividade e conhecimento. Bom trabalho!
+
+Resp:
+
+Nesta atividade utilizaremos o conjunto de dados da PNAD COVID-19, disponibilizado pelo IBGE em novembro de 2020.
+
+### Descrição da base de dados
+
+Iniciamos carregando a base de dados (.csv) e o dicionário (.xlxs) que a descreve.
+
+```{r}
+
+library(tidyverse)
+library(ggplot2)
+library(readxl)
+library(readr)
+library(srvyr) # trabalha com amostras complexas
+#?srvyr
+
+db_dict <- read_excel("Dicionario_PNAD_COVID_112020.xls",
+                      sheet = "dicionário pnad covid")
+db_pnad <- read.csv("PNAD_COVID_112020.csv") # obs: ~115MB
+
+head(db_pnad)
+
+```
+
+Vejamos a estrutura desta base de dados:
+
+```{r}
+
+dim(db_pnad)
+str(db_pnad)
+
+```
+
+## Selecionando algumas informações de interesse
+
+Agora iremos colocar os pesos e filtrar pela região de interesse, que é a capital de MG, a cidade de Belo Horizonte.
+
+```{r}
+
+# Sobre srvyr:
+# "There are three stages to using srvyr functions, creating a survey object, manipulating the data, and calculating survey statistics."
+#?as_survey_design
+#?as_survey_rep
+#?as_survey_twophase
+
+
+# coloca pesos e filtra pelo município de belo horizonte/mg
+db_pesos <- db_pnad %>%
+  as_survey_design(ids=UPA, strata=Estrato, weights=V1032, nest=TRUE) %>%
+  filter(UF == "31")
+
+db_pesos$variables
+#summary(db_pesos$variables$CAPITAL)
+
+```
+
+```{r}
+
+pnad_pesos <- db_pesos %>% 
+  mutate(one = 1,
+         Sexo = ifelse(A003 == 1, "Homem", "Mulher"),
+         Idade = case_when(
+           A002 %in% 15:24 ~ "15-24",
+           A002 %in% 25:34 ~ "25-34", 
+           A002 %in% 35:49 ~ "35-49", 
+           A002 %in% 50:64 ~ "50-64", 
+           A002 > 64 ~ "65+"),
+         Cor = case_when(
+           A004 == 1 ~ "Branca", 
+           A004 == 2 ~ "Preta", 
+           A004 == 4 ~ "Parda"),
+         Escolaridade = factor(case_when(  ##usando factor conseguimos ordenar
+           A005 %in% 1:2 ~ "Sem Instrução ou Fundamental Incompleto", 
+           A005 %in% 3:4 ~ "Fundamental completo ou Médio Incompleto", 
+           A005 %in% 5:6 ~ "Médio completo ou Superior Incompleto", 
+           A005 == 7 ~ "Superior completo", 
+           A005 == 8 ~ "Pós-graduação"), 
+           levels = c("Sem Instrução ou Fundamental Incompleto",
+                      "Fundamental completo ou Médio Incompleto", 
+                      "Médio completo ou Superior Incompleto",
+                      "Superior completo",
+                      "Pós-graduação")), 
+         Tipo_emprego = factor(case_when(
+           C007 == 1 ~ "Trabalhador doméstico (empregado doméstico, cuidados, babá)",
+           C007 == 2 ~ "Militar",
+           C007 == 3 ~ "Policial ou Bombeiro",
+           C007 == 4 ~ "Setor privado",
+           C007 == 5 ~ "Setor público",
+           C007 == 6 ~ "Empregador",
+           C007 == 7 ~ "Autônomo (Conta própria)"),
+           levels = c( "Trabalhador doméstico (empregado doméstico, cuidados, babá)",
+               "Militar", 
+               "Policial ou Bombeiro",
+               "Setor privado",
+               "Setor público",
+               "Empregador",
+               "Autônomo (Conta própria)")), 
+         Faixa_salario = factor(case_when(
+           C01012 <= 1044 ~ "Menos de um salário mínimo",
+           C01012 %in% c(1045:2090) ~ "Entre 1 e 2",
+           C01012 %in% c(2091:3135) ~ "Entre 2 e 3",
+           C01012 %in% c(3136:4180) ~ "Entre 3 e 4",
+           C01012 %in% c(4181:5225) ~ "Entre 4 e 5",
+           C01012 >= 5226 ~ "Mais de 5"),
+           levels = c("Menos de um salário mínimo",
+               "Entre 1 e 2",
+               "Entre 2 e 3",
+               "Entre 3 e 4",
+               "Entre 4 e 5",
+               "Mais de 5")),
+         domicilio_situacao = factor(case_when(
+           F001 == 1 ~ "Próprio - já pago",
+           F001 == 2 ~ "Próprio - ainda pagando" ,                                  
+           F001 == 3 ~ "Alugado",
+           F001 %in% 4:6 ~ "Cedido (Por empregador, Familiar ou outro)"),
+           levels = c("Próprio - já pago",
+                      "Próprio - ainda pagando",
+                      "Alugado", 
+                      "Cedido (Por empregador, Familiar ou outro)")),
+         home_office = ifelse(C013 == 1, "Home Office", "Presencial"),
+         auxilio_emergencial = ifelse(D0051 == 1, "Auxílio", "Sem auxílio"),
+         fez_emprestimo = case_when(
+           E001 == 1 ~ "Sim, e pelo menos um morador conseguiu", 
+           E001 == 2 ~ "Sim, mas nenhum morador conseguiu ", 
+           E001 == 3 ~ "Não solicitou"),
+         teve_covid = ifelse(B009B == 1, "Sim", "Não"),
+)
+
+names(pnad_pesos)
+
+```
+
+### Análise sobre os empréstimos realizados durante a pandemia
+
+Em meio a pandemia as dificuldades financeiras têm sido uma constante nos diferentes setores sociais. Vejamos como se dá a distribuição da quantidade de pessoas que pediram empréstimos em Belo Horizonte, segundo o PNAD.
+
+A pergunta realizada nas pesquisas, por domicílio, foi: "Durante o período da pandemia alguém deste domicílio solicitou algum empréstimo?" (código da variável E001, segundo o dicionário do PNAD COVID).
+As respostas para esta pergunta se dividiram em: "Sim, e pelo menos um morador conseguiu"; "Sim, mas nenhum morador conseguiu" e "Não".
+Para nossos interesses, dividimos essas respostas em "Sim" (para o primeiro caso, quando de fato o empréstimo se efetivou) ou "Não", caso contrário.
+
+```{r}
+
+#names(pnad_pesos$variables)
+#?survey_total
+
+# separa um conjunto de dados para fazer o gráfico desejado: empréstimo por sexo, e cor:
+sexo_cor <- pnad_pesos %>%
+  group_by(Sexo, Cor) %>%
+  summarise(emprestimo=survey_total(E001 == 1, na.rm = TRUE)) %>% #pediu empréstimo?
+  mutate(fez_emprestimo=emprestimo) %>%
+  drop_na()
+#head(sexo_cor)
+
+# gera gráfico
+subtitle_grafico <- "Durante o período da pandemia alguém deste domicílio solicitou algum empréstimo?"
+
+grafico1 <- ggplot(data=sexo_cor,
+                  aes(x=Sexo, y=fez_emprestimo, fill=Cor))+
+  geom_bar(position="dodge", stat="identity", width=0.5) +
+  scale_y_continuous(limits = c(-100, 0.5e+06)) +
+  geom_text(aes(label=sprintf("%.0f", fez_emprestimo)),
+            size=3, position=position_dodge(width=0.5),
+            vjust=-0.5, hjust=0.5, color = 'black', fontface='bold') +
+  labs(title="Pedidos de empréstimo por sexo e cor, Belo Horizonte - MG",
+       subtitle=subtitle_grafico,
+       x="", y="# pedidos de empréstimo", tag="  ",
+       fill="Cor: ",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  theme_dark() +
+  guides(col=guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=10, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        legend.title = element_text(size=rel(0.9), face="bold", vjust=0.5),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour="gray", size=1),
+        panel.grid.major.x = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        strip.background = element_rect(fill="grey90", colour="grey50"),
+        strip.text.y = element_text(size=rel(0.8), angle=-90)
+  ) 
+
+grafico1
+
+```
+
+Os gráficos acima ilustram que o segmento que realizou mais empréstimos durante o período da pandemia foi o de cor branca, sendo o grupo das mulheres o que contou com a maior quantidade.
+
+
+```{r}
+
+#names(pnad_pesos$variables)
+#?survey_total
+
+# separa um conjunto de dados para fazer o gráfico desejado: empresitmo por sexo e escolaridade:
+sexo_escolaridade <- pnad_pesos %>%
+  group_by(Sexo, Escolaridade) %>%
+  summarise(emprestimo=survey_total(E001 == 1, na.rm = TRUE)) %>% #pediu empréstimo?
+  mutate(fez_emprestimo=emprestimo) %>%
+  drop_na()
+#head(sexo_cor)
+
+# gera gráfico
+subtitle_grafico <- "Durante o período da pandemia alguém deste domicílio solicitou algum empréstimo?"
+
+grafico2 <- ggplot(data=sexo_escolaridade,
+                   aes(x=Sexo, y=fez_emprestimo, fill=Escolaridade))+
+  geom_bar(position="dodge", stat="identity", width=0.5) +
+  scale_y_continuous(limits = c(-100, 0.8e+06)) +
+  geom_text(aes(label=sprintf("%.0f", fez_emprestimo)),
+            size=2.8, position=position_dodge(width=0.5),
+            vjust=0.1, hjust=-0.1, color = 'black', fontface='bold', angle=60) +
+  labs(title="Pedidos de empréstimo por sexo e escolaridade, Belo Horizonte - MG",
+       subtitle=subtitle_grafico,
+       x="", y="# pedidos de empréstimo", tag="  ",
+       fill="Escolaridade: ",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  theme_dark() +
+  guides(col=guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=12, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'right',
+        legend.justification = 'center',
+        legend.direction = 'vertical',
+        legend.text = element_text(size=rel(0.9), vjust=0.5),
+        legend.title = element_text(size=rel(0.9), vjust=0.5, face="bold"),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour="gray", size=1),
+        panel.grid.major.x = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        #plot.title = element_text(size=rel(0.9)),
+        strip.background = element_rect(fill="grey90", colour="grey50"),
+        strip.text.y = element_text(size=rel(0.7), angle=-90)
+  ) 
+
+grafico2
+
+```
+
+Dentre os que pediram empréstimo, para ambos os sexos, os que possuem grau de escolaridade 'Sem instrução ou Fundamental' ou 'Médio completo e Superior Incompleto' são os que tiveram mais participação.
+O gráfico ilustra esse aspecto, além de mostrar que aqueles com 'Pós-graduação' foram os que menos pediram empréstimo ao durante a pandemia.
+
+```{r}
+
+# separa um conjunto de dados para fazer o gráfico desejado: solicitou empréstimo mas não conseguiu por sexo e cor em bh:
+sexo_cor <- pnad_pesos %>%
+  group_by(Sexo, Cor) %>%
+  summarise(emprestimo=survey_total(E001 == 2, na.rm = TRUE)) %>% #pediu empréstimo e não conseguiu?
+  mutate(nao_conseguiu_emprestimo=emprestimo) %>%
+  drop_na()
+#head(sexo_cor)
+
+# gera gráfico
+subtitle_grafico <- "Durante a pandemia alguém deste domicílio solicitou algum empréstimo, mas não conseguiu?"
+
+grafico3 <- ggplot(data=sexo_cor,
+                  aes(x=Sexo, y=nao_conseguiu_emprestimo, fill=Cor))+
+  geom_bar(position="dodge", stat="identity", width=0.5) +
+  scale_y_continuous(limits = c(-100, 1e+05)) +
+  geom_text(aes(label=sprintf("%.0f", nao_conseguiu_emprestimo)),
+            size=3, position=position_dodge(width=0.5),
+            vjust=0.5, hjust=1.0, color = 'black', fontface='bold') +
+  labs(title="Pedidos de empréstimo negados por sexo e cor, Belo Horizonte - MG",
+       subtitle=subtitle_grafico,
+       x="", y="# pedidos de empréstimo negados", tag="  ",
+       fill="Cor: ",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  theme_dark() +
+  guides(col=guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=10, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        legend.title = element_text(size=rel(0.9), face="bold", vjust=0.5),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_line(colour="gray", size=1),
+        panel.grid.major.y = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        strip.background = element_rect(fill="grey90", colour="grey50"),
+        strip.text.y = element_text(size=rel(0.8), angle=-90)
+  ) +
+  coord_flip()
+
+grafico3
+
+```
+
+
+No primeiro gráfico exibido no início deste trabalho (sob título "Pedidos de empréstimo por sexo e cor (Belo Horizonte - MG)"), vimos que as mulheres brancas formam o principal estrato, somando um total de *459016* empréstimos, quando se trata de empréstimos concedido no município de Belo Horizonte durante o período da pandemia.
+Já o gráfico acima, referente aos empréstimos *negados*, mostram que os homems pardos são os que mais solicitaram e não tiveram sucesso em seus pedidos.
+Ainda neste quesito, as mulheres pardas ocupam a segunda posição.
+Essas informações ilustram uma tendencia socio-cultural compartilhada pelos cerca de 2,5 milhões de habitantes de Belo Horizonte no período analisado.
+
+Os gráficos mostram que cor, sexo e nível de escolaridade dos indivíduos podem influenciar no quesito "empréstimos durante a pandemia".
+
+
+### Informações sobre COVID-19
+Restringindo a questão "Durante a pandemia alguém do domicílio pediu empréstimo, mas não conseguiu?" aos que testaram positivo para COVID-19, a distrubuição dos dados fica como o gráfico abaixo.
+
+```{r}
+# separa um conjunto de dados para fazer o gráfico desejado: solicitou empréstimo mas não conseguiu por sexo e COVID-19 em bh:
+cor_sexo_covid <- pnad_pesos %>%
+  filter(B009B == 1, na.rm = TRUE) %>% 
+  group_by(Sexo, Cor) %>%
+  summarise(emprestimo=survey_total(E001 == 2, na.rm = TRUE)) %>% # pediu empréstimo e não conseguiu?
+  mutate(nao_conseguiu_emprestimo=emprestimo) %>%
+  drop_na()
+#head(cor_covid)
+
+grafico4 <- ggplot(data=cor_sexo_covid,
+                  aes(x=Cor, y=nao_conseguiu_emprestimo, fill=Sexo))+
+  geom_bar(position="dodge", stat="identity", width=0.5) +
+  scale_y_continuous(limits = c(0, 1.05e+03)) +
+  geom_text(aes(label=sprintf("%.0f", nao_conseguiu_emprestimo)),
+            size=3, position=position_dodge(width=0.5),
+            vjust=-0.5, hjust=0.5, color = 'black', fontface='bold') +
+  facet_wrap(~Cor) +
+  labs(title='Pedidos de empréstimo negados por cor e sexo em pessoas com COVID-19',
+       subtitle='Belo Horizonte - MG',
+       x="", y="# pedidos de empréstimo negados", tag="  ",
+       fill="Sexo: ",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  theme_dark() +
+  guides(col=guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=10, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        legend.title = element_text(size=rel(0.9), face="bold", vjust=0.5),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        strip.background = element_blank(), 
+        strip.text.y = element_text(size=rel(0.8), angle=-90)
+  )
+
+grafico4
+
+```
+
+A seguir vemos a relação entre empréstimos solicitados e o tipo de emprego dos entrevistados pelo PNAD.
+
+```{r}
+
+# tipo de emprego e empréstimos
+home_emprego_emprestimo <- pnad_pesos %>%
+    filter(E001 == 1) %>%
+  group_by(Tipo_emprego) %>%
+  summarise(esta_em_home_office = survey_total(C013 == 1, na.rm=TRUE)) %>%
+  mutate(home_office_emprestimo = esta_em_home_office) %>%
+  drop_na()
+head(home_emprego_emprestimo)
+  
+# eixo x ordenado
+legenda_trabalhos <- c("Trabalhador doméstico\n (empregado doméstico \n cuidados, babá)",
+                       "Militar", 
+                       "Policial ou\n Bombeiro", 
+                       "Setor privado", "Setor público",
+                       "Empregador", "Autônomo\n (Conta própria)")
+
+grafico5 <- ggplot(home_emprego_emprestimo, 
+                   aes(x=Tipo_emprego, y=home_office_emprestimo, fill=Tipo_emprego)) +
+  geom_bar(position = "dodge", stat = "identity", width=0.5) +
+  scale_y_continuous(limits = c(-10, 0.35e+05)) +
+  scale_x_discrete(labels = legenda_trabalhos) +
+  labs(title="Pedidos de empréstimo por tipo de emprego em home-office",
+       subtitle= "Belo Horizonte - MG",
+       x="Tipo de emprego", y="# pedidos de empréstimo",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  geom_text(aes(label=sprintf("%.0f", home_office_emprestimo)),
+            size=2.8, position =position_dodge(width=0.5),
+            vjust=-0.4, hjust=0.50, color='black', fontface='bold') +
+  theme_dark() +
+    theme(axis.title = element_text(size=12, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.position = "none",
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=90, hjust=0.95, vjust=0.3, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour="gray", size=1),
+        panel.grid.major.x = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        strip.background = element_rect(fill="grey90", colour="grey50"),
+        strip.text.y = element_text(size=rel(0.7), angle=-90)
+  )
+
+grafico5
+
+```
+
+
+## Comparação sobre o pedido de empréstimos no estado de SP e MG
+
+
+```{r}
+
+db_pesos_br <- db_pnad %>%
+  as_survey_design(ids=UPA, strata=Estrato, weights=V1032, nest=TRUE)
+  
+
+pnad_pesos_br <- db_pesos_br %>% 
+  mutate(one = 1,
+         Sexo = ifelse(A003 == 1, "Homem", "Mulher"),
+         #estado = fct_reorder(estado, desc(estado)),
+         Idade = case_when(
+           A002 %in% 15:24 ~ "15-24",
+           A002 %in% 25:34 ~ "25-34", 
+           A002 %in% 35:49 ~ "35-49", 
+           A002 %in% 50:64 ~ "50-64", 
+           A002 > 64 ~ "65+"),
+         Cor = case_when(
+           A004 == 1 ~ "Branca", 
+           A004 == 2 ~ "Preta", 
+           A004 == 4 ~ "Parda"),
+         Escolaridade = factor(case_when(  ##usando factor conseguimos ordenar
+           A005 %in% 1:2 ~ "Sem Instrução ou Fundamental Incompleto", 
+           A005 %in% 3:4 ~ "Fundamental completo ou Médio Incompleto", 
+           A005 %in% 5:6 ~ "Médio completo ou Superior Incompleto", 
+           A005 == 7 ~ "Superior completo", 
+           A005 == 8 ~ "Pós-graduação"), 
+           levels = c("Sem Instrução ou Fundamental Incompleto",
+                      "Fundamental completo ou Médio Incompleto", 
+                      "Médio completo ou Superior Incompleto",
+                      "Superior completo",
+                      "Pós-graduação")), 
+         Tipo_emprego = factor(case_when(
+           C007 == 1 ~ "Trabalhador doméstico (empregado doméstico, cuidados, babá)",
+           C007 == 2 ~ "Militar",
+           C007 == 3 ~ "Policial ou Bombeiro",
+           C007 == 4 ~ "Setor privado",
+           C007 == 5 ~ "Setor público",
+           C007 == 6 ~ "Empregador",
+           C007 == 7 ~ "Autônomo (Conta própria)"),
+           levels = c( "Trabalhador doméstico (empregado doméstico, cuidados, babá)",
+               "Militar", 
+               "Policial ou Bombeiro",
+               "Setor privado",
+               "Setor público",
+               "Empregador",
+               "Autônomo (Conta própria)")), 
+         Faixa_salario = factor(case_when(
+           C01012 <= 1044 ~ "Menos de um salário mínimo",
+           C01012 %in% c(1045:2090) ~ "Entre 1 e 2",
+           C01012 %in% c(2091:3135) ~ "Entre 2 e 3",
+           C01012 %in% c(3136:4180) ~ "Entre 3 e 4",
+           C01012 %in% c(4181:5225) ~ "Entre 4 e 5",
+           C01012 >= 5226 ~ "Mais de 5"),
+           levels = c("Menos de um salário mínimo",
+               "Entre 1 e 2",
+               "Entre 2 e 3",
+               "Entre 3 e 4",
+               "Entre 4 e 5",
+               "Mais de 5")),
+         domicilio_situacao = factor(case_when(
+           F001 == 1 ~ "Próprio - já pago",
+           F001 == 2 ~ "Próprio - ainda pagando" ,                                  
+           F001 == 3 ~ "Alugado",
+           F001 %in% 4:6 ~ "Cedido (Por empregador, Familiar ou outro)"),
+           levels = c("Próprio - já pago",
+                      "Próprio - ainda pagando",
+                      "Alugado", 
+                      "Cedido (Por empregador, Familiar ou outro)")),
+         home_office = ifelse(C013 == 1, "Home Office", "Presencial"),
+         auxilio_emergencial = ifelse(D0051 == 1, "Auxílio", "Sem auxílio"),
+         fez_emprestimo = case_when(
+           E001 == 1 ~ "Sim, e pelo menos um morador conseguiu", 
+           E001 == 2 ~ "Sim, mas nenhum morador conseguiu ", 
+           E001 == 3 ~ "Não solicitou"),
+         teve_covid = ifelse(B009B == 1, "Sim", "Não"),
+         estado = case_when(
+           UF == 11 ~ 'Rondônia', 
+           UF == 12	~ 'Acre',
+           UF == 13 ~ 'Amazonas',
+           UF == 14 ~	'Roraima',
+           UF == 15 ~	'Pará',
+           UF == 16 ~	'Amapá',
+           UF == 17 ~	'Tocantins',
+           UF == 21 ~	'Maranhão', 
+           UF == 22	~ 'Piauí',
+           UF == 23	~ 'Ceará',
+           UF == 24 ~	'Rio Grande do Norte', 
+           UF == 25 ~	'Paraíba',
+           UF == 26 ~	'Pernambuco',
+           UF == 27 ~	'Alagoas',
+           UF == 28 ~	'Sergipe', 
+           UF == 29 ~	'Bahia',
+           UF == 31	~ 'Minas Gerais',
+           UF == 32	~ 'Espírito Santo',
+           UF == 33 ~	'Rio de Janeiro',
+           UF == 35 ~	'São Paulo',
+           UF == 41	~ 'Paraná',
+           UF == 42 ~	'Santa Catarina',
+           UF == 43 ~	'Rio Grande do Sul',
+           UF == 50	~ 'Mato Grosso do Sul',
+           UF == 51 ~	'Mato Grosso',
+           UF == 52 ~	'Goiás',
+           UF == 53 ~	'Distrito Federal')
+)
+
+names(pnad_pesos_br)
+
+```
+
+
+```{r}
+#names(pnad_pesos$variables)
+#?survey_total
+
+# separa um conjunto de dados para fazer o gráfico desejado: empréstimo por sexo, e cor:
+
+sexo_cor <- pnad_pesos_br %>%
+  filter(UF %in% c(31, 35)) %>%
+  group_by(estado, Sexo, Cor) %>%
+  summarise(emprestimo=survey_total(E001 == 1, na.rm = TRUE)) %>% #pediu empréstimo?
+  mutate(fez_emprestimo=emprestimo) %>%
+  drop_na()
+#sexo_cor
+
+# gera gráfico
+subtitle_grafico <- "Durante o período da pandemia alguém deste domicílio solicitou algum empréstimo?"
+
+grafico6 <- ggplot(data=sexo_cor,
+                  aes(x=Sexo, y=fez_emprestimo, fill=Cor))+
+  geom_bar(position="dodge", stat="identity", width=0.5) +
+  scale_y_continuous(limits = c(-100, 1.5e+06)) +
+  facet_wrap(vars(estado)) +
+  geom_text(aes(label=sprintf("%.0f", fez_emprestimo)),
+            size=3, position=position_dodge(width=0.5),
+            vjust=-0.5, hjust=0.5, color = 'black', fontface='bold') +
+  labs(title="Pedidos de empréstimo por sexo e cor",
+       subtitle=subtitle_grafico,
+       x="", y="# pedidos de empréstimo", tag="  ",
+       fill="Cor: ",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  theme_dark() +
+  guides(col=guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=10, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        legend.title = element_text(size=rel(0.9), face="bold", vjust=0.5),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour="gray", size=1),
+        panel.grid.major.x = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        #strip.background = element_rect(fill="grey90", colour="grey50"),
+        strip.text.y = element_text(size=rel(0.8), angle=-90)
+  )
+
+grafico6
+
+```
+
+
+
+
+
+
+
+```{r}
+
+#names(pnad_pesos$variables)
+#?survey_total
+
+# separa um conjunto de dados para fazer o gráfico desejado: empresitmo por sexo e escolaridade:
+sexo_escolaridade <- pnad_pesos_br %>%
+  filter(UF %in% c(31, 35)) %>%
+  group_by(estado, Sexo, Escolaridade) %>%
+  summarise(emprestimo=survey_total(E001 == 1, na.rm = TRUE)) %>% #pediu empréstimo?
+  mutate(fez_emprestimo=emprestimo) %>%
+  drop_na()
+
+# gera gráfico
+subtitle_grafico <- "Durante o período da pandemia alguém deste domicílio solicitou algum empréstimo?"
+
+grafico7 <- ggplot(data=sexo_escolaridade,
+                   aes(x=Sexo, y=fez_emprestimo, fill=Escolaridade))+
+  geom_bar(position="dodge", stat="identity", width=0.5) +
+  scale_y_continuous(limits = c(-100, 0.9e+06)) +
+  facet_wrap(vars(estado)) +
+  geom_text(aes(label=sprintf("%.0f", fez_emprestimo)),
+            size=2.8, position=position_dodge(width=0.5),
+            vjust=0.1, hjust=-0.1, color = 'black', fontface='bold', angle=60) +
+  labs(title="Pedidos de empréstimo por sexo e escolaridade",
+       subtitle=subtitle_grafico,
+       x="", y="# pedidos de empréstimo", tag="  ",
+       fill="Escolaridade: ",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  theme_dark() +
+  guides(col=guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=12, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'right',
+        legend.justification = 'center',
+        legend.direction = 'vertical',
+        legend.text = element_text(size=rel(0.9), vjust=0.5),
+        legend.title = element_text(size=rel(0.9), vjust=0.5, face="bold"),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour="gray", size=1),
+        panel.grid.major.x = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        strip.text.y = element_text(size=rel(0.7), angle=-90)
+  ) 
+
+grafico7
+
+```
+
+
+
+```{r}
+
+# separa um conjunto de dados para fazer o gráfico desejado: solicitou empréstimo mas não conseguiu por sexo e cor em bh:
+sexo_cor <- pnad_pesos_br %>%
+  filter(UF %in% c(31, 35)) %>%
+  group_by(estado, Sexo, Cor) %>%
+  summarise(emprestimo=survey_total(E001 == 2, na.rm = TRUE)) %>% #pediu empréstimo e não conseguiu?
+  mutate(nao_conseguiu_emprestimo=emprestimo) %>%
+  drop_na()
+#head(sexo_cor)
+
+# gera gráfico
+subtitle_grafico <- "Durante a pandemia alguém deste domicílio solicitou algum empréstimo, mas não conseguiu?"
+
+grafico8 <- ggplot(data=sexo_cor,
+                  aes(x=Sexo, y=nao_conseguiu_emprestimo, fill=Cor))+
+  geom_bar(position="dodge", stat="identity", width=0.5) +
+  facet_wrap(vars(estado)) +
+  geom_text(aes(label=sprintf("%.0f", nao_conseguiu_emprestimo)),
+            size=3, position=position_dodge(width=0.5),
+            vjust=0.5, hjust=1.0, color = 'black', fontface='bold') +
+  labs(title="Pedidos de empréstimo negados por sexo e cor",
+       subtitle=subtitle_grafico,
+       x="", y="# pedidos de empréstimo negados", tag="  ",
+       fill="Cor: ",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  theme_dark() +
+  guides(col=guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=10, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        legend.title = element_text(size=rel(0.9), face="bold", vjust=0.5),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_line(colour="gray", size=1),
+        panel.grid.major.y = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        strip.text.y = element_text(size=rel(0.8), angle=-90)
+  ) +
+  coord_flip()
+
+grafico8
+
+```
+
+
+
+```{r}
+# separa um conjunto de dados para fazer o gráfico desejado: solicitou empréstimo mas não conseguiu por sexo e COVID-19 em bh:
+cor_sexo_covid <- pnad_pesos %>%
+  filter(UF %in% c(31, 35)) %>%
+  filter(B009B == 1, na.rm = TRUE) %>% 
+  group_by(estado, Sexo, Cor) %>%
+  summarise(emprestimo=survey_total(E001 == 2, na.rm = TRUE)) %>% # pediu empréstimo e não conseguiu?
+  mutate(nao_conseguiu_emprestimo=emprestimo) %>%
+  drop_na()
+#head(cor_covid)
+
+grafico9 <- ggplot(data=cor_sexo_covid,
+                  aes(x=Cor, y=nao_conseguiu_emprestimo, fill=Sexo))+
+  geom_bar(position="dodge", stat="identity", width=0.5) +
+  scale_y_continuous(limits = c(0, 4e+03)) +
+  geom_text(aes(label=sprintf("%.0f", nao_conseguiu_emprestimo)),
+            size=3, position=position_dodge(width=0.5),
+            vjust=-0.5, hjust=0.5, color = 'black', fontface='bold') +
+  facet_wrap(vars(estado)) +
+  labs(title='Pedidos de empréstimo negados por cor e sexo em pessoas com COVID-19',
+       subtitle='',
+       x="", y="# pedidos de empréstimo negados", tag="  ",
+       fill="Sexo: ",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  theme_dark() +
+  guides(col=guide_legend(nrow=1))+
+  theme(axis.title = element_text(size=10, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.background = element_rect(fill="white", colour=NA),
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        legend.title = element_text(size=rel(0.9), face="bold", vjust=0.5),
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        strip.text.y = element_text(size=rel(0.8), angle=-90)
+  )
+
+grafico9
+
+```
+
+
+```{r}
+
+# tipo de emprego e empréstimos
+home_emprego_emprestimo <- pnad_pesos %>%
+  filter(UF %in% c(31, 35)) %>%
+  filter(E001 == 1) %>%
+  group_by(estado, Tipo_emprego) %>%
+  summarise(esta_em_home_office = survey_total(C013 == 1, na.rm=TRUE)) %>%
+  mutate(home_office_emprestimo = esta_em_home_office) %>%
+  drop_na()
+#head(home_emprego_emprestimo)
+  
+# eixo x ordenado
+legenda_trabalhos <- c("Trabalhador doméstico\n (empregado doméstico \n cuidados, babá)",
+                       "Militar", 
+                       "Policial ou\n Bombeiro", 
+                       "Setor privado", "Setor público",
+                       "Empregador", "Autônomo\n (Conta própria)")
+
+grafico10 <- ggplot(home_emprego_emprestimo, 
+                   aes(x=Tipo_emprego, y=home_office_emprestimo, fill=Tipo_emprego)) +
+  geom_bar(position = "dodge", stat = "identity", width=0.5) +
+  scale_y_continuous(limits = c(-10, 1.4e+05)) +
+  scale_x_discrete(labels = legenda_trabalhos) +
+  facet_wrap(vars(estado)) +
+  labs(title="Pedidos de empréstimo por tipo de emprego em home-office",
+       x="Tipo de emprego", y="# pedidos de empréstimo",
+       caption="Fonte: Microdados da PNAD COVID-19, IBGE, Nov/2020") +
+  geom_text(aes(label=sprintf("%.0f", home_office_emprestimo)),
+            size=2.8, position =position_dodge(width=0.5),
+            vjust=-0.4, hjust=0.50, color='black', fontface='bold') +
+  theme_dark() +
+    theme(axis.title = element_text(size=12, face="italic"),
+        plot.caption = element_text(hjust= 0.0, size=8, vjust=0.0),
+        axis.line.y = element_blank(), 
+        axis.line.x = element_line(lineend="round"),
+        axis.ticks.length = unit(0.2, "lines"), 
+        axis.ticks.y = element_line(colour="gray", size=1),
+        legend.position = "none",
+        panel.background = element_blank(),
+        axis.text.x = element_text(angle=90, hjust=0.95, vjust=0.3, face="bold"),
+        panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(colour="gray", size=1),
+        panel.grid.major.x = element_blank(),
+        plot.margin = unit(c(1, 1, 0.5, 0.5), "lines"),
+        strip.text.y = element_text(size=rel(0.7), angle=-90)
+  )
+
+grafico10
+
+```

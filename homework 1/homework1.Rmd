@@ -1,0 +1,183 @@
+---
+title: "Homework 1"
+author: "Marcelo Santos Carielo"
+date: "05/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Questão 1
+1) Faça algumas operações matemáticas com os operadores listados na aula 1. Escolha pelo menos três operadores distintos. Faça também 3 combinações distintas entre os operadores.
+
+Resp:
+```{r calc}
+2*7
+1-2
+3+7
+
+1*1 + 2-1 + 2
+10*(sqrt(9) - 2)
+2*(3+2) - sqrt(49)
+```
+
+## Questão 2
+
+2) Suponha que um pesquisador tenha criado o pacote chamado Brasil. Que comando você utilizaria para instalar tal pacote? 
+
+Resp: install.packages("Brasil")
+
+Que comando você utilizaria para carregar tal pacote?
+
+Resp: library(rpart)
+
+Suponha que dentro deste pacote Brasil tenha a função SP. Como você acabou de instalar este pacote, ainda não está familiarizado com os termos desta nova função.
+De que forma você poderia descobrir como utilizar este comando dentro do R?
+
+Resp:
+help(Brasil, package="SP")
+
+
+E fora do R?(Você pode fazer uma pesquisa para responder essa questão)
+
+Resp: Através do CRAN, Google, Stackoverflow, etc.
+
+
+3) Como é possível criar um 'chunk' de código no R markdown? 
+
+Resp: Digitando linhas de código da seguinte forma:
+```{r } 
+  
+  # primeira linha de código
+  # segunda linha de código
+  # ...
+  
+```
+
+Quais as opções para usar knit? 
+
+Resp: O Knit permite exportar uma versão do script para os formatos pdf, html e word. Há várias opções para sua utilização que podem ser encontradas em https://yihui.org/knitr/options/. Algumas delas são:
+echo, dev, label, include.
+
+(Faça uma pesquisa para responder essa questão, ou use o card Rmarkdown disponibilizado no AVA - Moodle).
+
+
+
+4) Teste qual a diferença entre criar um vetor usando a função c() e c(””).
+
+Resp: Nos testes abaixo vemos que c() retorna uma lista com 4 caracteres (um objeto 1x4) e c("") retorna uma lista com uma 'string' formada por um conjunto de caracteres, espaços e vírgulas (um objeto 1x1).
+
+```{r funcão c() e c("")}
+
+vetor1 <- c(1, 2, "a", "b")
+vetor1
+vetor1[1]
+
+vetor2 <- c("1,2, a, b")
+vetor2
+vetor2[1]
+
+```
+
+
+5) Crie um vetor de todos números inteiros maiores do que 1 e menores do que 1000. Em seguida, crie um vetor com as mesmas características, contendo apenas números pares.
+Dica: obviamente não espero que você digite elemento por elemento.
+
+Resp: Veja o código abaixo.
+```{r lista de números inteiros}
+
+# vetor com números inteiros em (1,1000)
+vetor1 <- c(2:999)
+vetor1
+
+# vetor com números inteiros pares em (1,1000)
+vetor2 <- subset(vetor1, vetor1 %% 2 == 0)
+vetor2
+
+```
+
+6) Calcule o número de ouro no R.
+Dica: o número de ouro é dado pela expressão: (1+sqrt(5))/2
+
+Resp: Veja o código abaixo.
+```{r número de ouro}
+
+(1 + sqrt(5))/2
+
+
+```
+
+
+7) Qual o resultado da divisão de 1 por 0 no R? E de -1 por 0?
+
+Resp: Veja o código abaixo.
+```{r divisão por zero}
+
+1/0
+
+-1/0
+
+```
+
+8) Verifique quais as diferenças entre NaN, NULL, NA e Inf? Digite expressões que retornem cada um desses resultados.
+
+Resp: NaN: significa 'Not a Number'; NULL representa o objeto nulo em R; NA significa 'Not Avaliable' e Inf significa "infinito positivo".
+Abaixo temos as decrições, indicando diferenças, além de expressões com esses resultados.
+```{r}
+
+#?NaN
+0/0
+
+#?NULL
+as.null(list(a = 1, b = "c"))
+
+#?NA
+x <- c(0:2)
+is.na(x) <- c(2)
+x
+
+#?Inf
+1/0
+
+```
+
+
+9) Verifique o que retorna a expressão 5 + 3 * 10 %/%3 == 15 retorna no R. Faça a expressão retornar o valor contrário apenas usando parênteses - ou seja, se a expressão retornar originariamente TRUE, faça retornar FALSE. Explique o que faz a expressão original.
+
+Resp:
+```{r expressão}
+
+# o que retorna?
+5 + 3 * 10 %/%3 == 15
+# Como %/% retorna a divisão numérica, no esquerdo temos a soma de 5 com 3 vezes 3 (que é nove), resultando em 5 + 9 que é 14. Do lado direito temos uma contante igual a 15. O comando '==' avalia se o lado esquerdo é igual ao direito, ou falso, retornando TRUE ou FALSE, respectivamente.
+
+# retorna o contrário
+5 + (3 * 10) %/%3 == 15
+# Colocando parênteses mudamos a ordem de precedência das operações. Agora do lado esquerdo somamos 5 ao resultado de 30 dividido por 3 (que é 10). Portanto, o operador lógico de exatemente iguais '==' agora retorna TRUE.
+
+```
+
+10) Escreva um loop que itere os números de 1 a 7 e imprima o cubo de cada número, usando print().
+
+Resp:
+```{r loop}
+for(i in 1:7){
+  print(i^3)
+}
+```
+
+
+11) Verifique qual é o seu atual diretório de trabalho com o comando getwd(). Lembre-se que para mudar o diretório, você deve usar setwd(”caminho da pasta escolhida”).
+
+Resp:
+```{r diretório}
+
+diretorio <- getwd()
+diretorio
+
+#setwd(diretorio)
+#getwd()
+
+```

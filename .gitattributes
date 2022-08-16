@@ -15,7 +15,7 @@
 *.[Rr]md   linguist-detectable
 
 public/* linguist-generated
-scot-ui/public/* linguist-vendored
+course-ufscar-data-science-covid-ui/public/* linguist-vendored
 lib/* linguist-language=Rmd
 bin/* linguist-language=Rmd
 

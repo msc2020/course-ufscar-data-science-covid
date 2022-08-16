@@ -1,4 +1,5 @@
-Basic .gitattributes for a R repo.
+# Basic .gitattributes for a R repo.
+# https://github.com/alexkaratarakis/gitattributes/blob/master/R.gitattributes
 
 # Source files
 # ============
@@ -13,10 +14,3 @@ Basic .gitattributes for a R repo.
 *.R  	  text
 *.Rproj text
 *.[Rr]md   linguist-detectable
-Footer
-© 2022 GitHub, Inc.
-Footer navigation
-Terms
-Privacy
-Security
-# https://github.com/alexkaratarakis/gitattributes/blob/master/R.gitattributes

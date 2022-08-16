@@ -1,7 +1,8 @@
 # Basic .gitattributes for a R repo.
 # https://github.com/alexkaratarakis/gitattributes/blob/master/R.gitattributes
 
-*.html linguist-detectable=false
+* linguist-vendored
+*.html linguist-vendored=false
 
 # Source files
 # ============

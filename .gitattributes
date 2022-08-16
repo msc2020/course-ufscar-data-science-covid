@@ -1,17 +1,9 @@
 # Basic .gitattributes for a R repo.
 # https://github.com/alexkaratarakis/gitattributes/blob/master/R.gitattributes
 
+*.rmd linguist-language=R
+
 * linguist-vendored
 *.html linguist-vendored=false
 
-# Source files
-# ============
-*.Rdata binary
-*.RData binary
-*.rda   binary
-*.rdb   binary
-*.rds   binary
-*.Rd    text
-*.Rdx   binary
-*.Rmd	  text
-*.R  	  text
+

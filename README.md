@@ -1,3 +1,3 @@
 # Codes of course - Data Science: analysis and visualization of coronavirus data
 
-Codes developed during the course **ACIEPE Extension Activity - Statistics for Data Science: analysis and visualization of coronavirus data**, offered by the Department of Economics of the Federal University of São Carlos (UFSCAR), from September/2020 to March/2021.
+Codes developed during the course **ACIEPE Extension Activity - Statistics for Data Science: analysis and visualization of coronavirus data**, offered by the Department of Economics of the Federal University of São Carlos (UFSCAR), 2021.
